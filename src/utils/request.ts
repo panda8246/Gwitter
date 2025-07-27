@@ -11,7 +11,9 @@ export const createAuthenticatedApi = (token: string) => {
   });
 };
 
-export const api = createAuthenticatedApi(config.request.token.join(''));
+export const api = createAuthenticatedApi(
+  config.request.token.replaceAll('?', ''),
+);
 
 interface GetIssuesQLParams {
   owner: string;

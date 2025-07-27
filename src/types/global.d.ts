@@ -1,6 +1,6 @@
 export interface GwitterConfig {
   request?: {
-    token?: string[];
+    token?: string;
     clientID?: string;
     clientSecret?: string;
     pageSize?: number;

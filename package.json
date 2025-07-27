@@ -1,6 +1,6 @@
 {
   "name": "gwitter",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Turn GitHub Issues into your personal microblog platform",
   "main": "dist/gwitter.min.js",
   "module": "dist/gwitter.esm.js",
