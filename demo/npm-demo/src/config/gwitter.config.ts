@@ -21,7 +21,10 @@ export interface GwitterConfig {
 // Default configuration
 export const config: GwitterConfig = {
   request: {
-    token: ['9c48ed2297d7d9bf9447', '6de723dbf1a6e4adeacd'],
+    token: [
+      'github_pat_11AHV6EWQ0GdyfOgmwqJ',
+      'cP_Chhg9y8gxcQNnOhK5WKsySSkIv3lTRFpLki4v1SKStWLBRSUKU7Ni085ysS',
+    ],
     clientID: '56af6ab05592f0a2d399',
     clientSecret: '5d7e71a1b6130001e84956420ca5b88bc45b7d3c',
     pageSize: 6,

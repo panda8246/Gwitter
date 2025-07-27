@@ -427,7 +427,6 @@ const CommentList: React.FC<CommentListProps> = ({
     }
   }, [isVisible, loaded, repoOwner, repoName]);
 
-  // 监听滚动事件，滚动时取消删除确认
   useEffect(() => {
     if (confirmDeleteId) {
       const handleScroll = () => {
