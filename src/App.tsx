@@ -61,6 +61,29 @@ const ErrorSubText = styled.span`
   color: #666;
 `;
 
+const EmptyStateContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  min-height: 300px;
+`;
+
+const EmptyStateIcon = styled.span`
+  font-size: 48px;
+  margin-bottom: 20px;
+  opacity: 0.6;
+`;
+
+const EmptyStateTitle = styled.h3`
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  color: #333;
+`;
+
 const App = () => {
   const { user } = useAuth();
   const [issues, setIssues] = useState<ProcessedIssue[]>([]);
@@ -414,6 +437,14 @@ const App = () => {
             </AnimatePresence>
           </IssuesContainer>
         </>
+      )}
+      {issues.length === 0 && !isLoading && !isRepoLoading && !repoError && currentRepo.owner && currentRepo.repo && (
+        <IssuesContainer>
+          <EmptyStateContainer>
+            <EmptyStateIcon>📝</EmptyStateIcon>
+            <EmptyStateTitle>No Issues Found</EmptyStateTitle>
+          </EmptyStateContainer>
+        </IssuesContainer>
       )}
       {hasNextPage && (
         <LoadingPlaceholder
