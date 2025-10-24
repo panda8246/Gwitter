@@ -178,6 +178,61 @@ export const transformIssues = (
   );
 };
 
+// Transform Discussions data (similar to Issues)
+// 只保留 Announcements 类别的讨论，但使用 labels 进行分类和筛选
+export const transformDiscussions = (
+  rawDiscussions: any[],
+  currentUser?: string,
+): ProcessedIssue[] => {
+  // 过滤出 Announcements 类型的讨论（需求3：数据来源固定为 Announcements）
+  const announcements = rawDiscussions.filter(
+    (discussion) => discussion.category?.isAnnouncement === true,
+  );
+
+  return announcements.map(
+    ({
+      id,
+      number,
+      createdAt,
+      bodyHTML,
+      title,
+      url,
+      author,
+      reactions,
+      comments,
+      labels,
+    }) => {
+      const heartReactions = reactions.nodes.filter(
+        (reaction: any) => reaction.content === 'HEART',
+      );
+      const heartCount = heartReactions.length;
+      const userReacted = currentUser
+        ? heartReactions.some(
+            (reaction: any) => reaction.user.login === currentUser,
+          )
+        : false;
+
+      return {
+        id,
+        number,
+        createdAt,
+        bodyHTML,
+        title,
+        url,
+        author,
+        reactions: {
+          totalCount: reactions.totalCount,
+          userReacted,
+          heartCount,
+        },
+        comments: comments.totalCount,
+        // 使用 Discussion 自身的 labels（与 Issue 模式一致）
+        label: transformLabel(labels.nodes),
+      };
+    },
+  );
+};
+
 export const formatDate = (_date: string | Date, language = 'zh') => {
   const date = new Date(_date);
   const now = new Date();
@@ -262,7 +317,12 @@ export const windowOpen = (_url: string) => {
     'addEventListener' in window ? 'addEventListener' : 'attachEvent';
   const eventer = (window as any)[eventMethod];
   const messageEvent = eventMethod === 'attachEvent' ? 'onmessage' : 'message';
-  const handleMessage = (e: any, resolve: any, reject: any, windowCheckInterval?: NodeJS.Timeout) => {
+  const handleMessage = (
+    e: any,
+    resolve: any,
+    reject: any,
+    windowCheckInterval?: NodeJS.Timeout,
+  ) => {
     if (authWindow) {
       authWindow.close();
     }
@@ -295,7 +355,7 @@ export const windowOpen = (_url: string) => {
     resolve(accessToken);
   };
 
-    return new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const checkWindowClosed = () => {
       if (authWindow && authWindow.closed) {
         clearInterval(windowCheckInterval);
@@ -305,7 +365,11 @@ export const windowOpen = (_url: string) => {
 
     const windowCheckInterval = setInterval(checkWindowClosed, 500);
 
-    eventer(messageEvent, (e: any) => handleMessage(e, resolve, reject, windowCheckInterval), false);
+    eventer(
+      messageEvent,
+      (e: any) => handleMessage(e, resolve, reject, windowCheckInterval),
+      false,
+    );
 
     if (!authWindow) {
       clearInterval(windowCheckInterval);

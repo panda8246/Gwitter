@@ -14,6 +14,7 @@ let config = {
   },
 
   app: {
+    dataSource: 'issue' as 'issue' | 'discussion', // 默认使用 issue 模式
     onlyShowOwner: false,
     enableRepoSwitcher: true,
     enableAbout: false,

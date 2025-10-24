@@ -83,6 +83,75 @@ interface GetLabelsParams {
   repo: string;
 }
 
+// Get Discussions with Announcements category filter
+interface GetDiscussionsQLParams {
+  owner: string;
+  repo: string;
+  cursor: string | null;
+  pageSize: number;
+}
+
+export const getDiscussionsQL = (vars: GetDiscussionsQLParams) => {
+  const ql = `
+  query getDiscussions($owner: String!, $repo: String!, $cursor: String, $pageSize: Int!) {
+    repository(owner: $owner, name: $repo) {
+      discussions(first: $pageSize, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          id
+          number
+          createdAt
+          bodyHTML
+          title
+          url
+          author {
+            login
+            avatarUrl
+            url
+          }
+          reactions(first: 100) {
+            totalCount
+            nodes {
+              content
+              user {
+                login
+              }
+            }
+          }
+          comments(first: 1) {
+            totalCount
+          }
+          category {
+            id
+            name
+            isAnnouncement
+          }
+          labels(first: 10) {
+            nodes {
+              name
+              color
+            }
+          }
+        }
+      }
+    }
+  }
+  `;
+
+  if (vars.cursor === null) {
+    Reflect.deleteProperty(vars, 'cursor');
+  }
+
+  return {
+    operationName: 'getDiscussions',
+    query: ql,
+    variables: vars,
+  };
+};
+
 export const getLabelsQL = ({ owner, repo }: GetLabelsParams) => ({
   query: `
     query {

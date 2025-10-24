@@ -14,10 +14,11 @@ import {
   getRepoFromUrl,
   ProcessedIssue,
   transformIssues,
+  transformDiscussions,
   updateUrlParams,
 } from './utils';
 import { loadLastRepo, saveLastRepo } from './utils/cache';
-import { api, getIssuesQL } from './utils/request';
+import { api, getIssuesQL, getDiscussionsQL } from './utils/request';
 
 const Container = styled.div`
   box-sizing: border-box;
@@ -140,25 +141,44 @@ const App = () => {
 
   const loadIssues = useCallback(async () => {
     const repo = currentRepoRef.current;
+    const dataSource = config.app.dataSource || 'issue'; // 默认使用 issue 模式
+
     console.log(
       'loadIssues called for repo:',
       `${repo.owner}/${repo.repo}`,
+      'dataSource:',
+      dataSource,
       'cursor:',
       cursorRef.current,
       'isLoading:',
       isLoadingRef.current,
     );
+
     try {
-      const res = await api.post(
-        '/graphql',
-        getIssuesQL({
-          owner: repo.owner,
-          repo: repo.repo,
-          cursor: cursorRef.current,
-          pageSize: config.request.pageSize,
-        }),
-      );
-      const data = res.data.data.repository.issues;
+      // 根据 dataSource 选择不同的查询函数
+      const query =
+        dataSource === 'discussion'
+          ? getDiscussionsQL({
+              owner: repo.owner,
+              repo: repo.repo,
+              cursor: cursorRef.current,
+              pageSize: config.request.pageSize,
+            })
+          : getIssuesQL({
+              owner: repo.owner,
+              repo: repo.repo,
+              cursor: cursorRef.current,
+              pageSize: config.request.pageSize,
+            });
+
+      const res = await api.post('/graphql', query);
+
+      // 根据 dataSource 获取不同的数据路径
+      const data =
+        dataSource === 'discussion'
+          ? res.data.data.repository.discussions
+          : res.data.data.repository.issues;
+
       const { hasNextPage: nextPage, endCursor } = data.pageInfo;
 
       setHasNextPage(nextPage);
@@ -167,10 +187,13 @@ const App = () => {
       const newRawIssuesData = [...rawIssuesData, ...data.nodes];
       setRawIssuesData(newRawIssuesData);
 
-      setIssues((prev) => [
-        ...prev,
-        ...transformIssues(data.nodes, currentUserRef.current),
-      ]);
+      // 根据 dataSource 选择不同的转换函数
+      const transformedData =
+        dataSource === 'discussion'
+          ? transformDiscussions(data.nodes, currentUserRef.current)
+          : transformIssues(data.nodes, currentUserRef.current);
+
+      setIssues((prev) => [...prev, ...transformedData]);
 
       setIsLoading(false);
       loadMoreTriggeredRef.current = false;
@@ -438,22 +461,23 @@ const App = () => {
           </IssuesContainer>
         </>
       )}
-      {issues.length === 0 && !isLoading && !isRepoLoading && !repoError && currentRepo.owner && currentRepo.repo && (
-        <IssuesContainer>
-          <EmptyStateContainer>
-            <EmptyStateIcon>📝</EmptyStateIcon>
-            <EmptyStateTitle>No Issues Found</EmptyStateTitle>
-          </EmptyStateContainer>
-        </IssuesContainer>
-      )}
+      {issues.length === 0 &&
+        !isLoading &&
+        !isRepoLoading &&
+        !repoError &&
+        currentRepo.owner &&
+        currentRepo.repo && (
+          <IssuesContainer>
+            <EmptyStateContainer>
+              <EmptyStateIcon>📝</EmptyStateIcon>
+              <EmptyStateTitle>No Issues Found</EmptyStateTitle>
+            </EmptyStateContainer>
+          </IssuesContainer>
+        )}
       {hasNextPage && (
         <LoadingPlaceholder
           initial={{ opacity: 0, y: 20 }}
-          animate={
-            isLoading
-              ? { opacity: 1, y: 0 }
-              : { opacity: 0, y: 20 }
-          }
+          animate={isLoading ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.15, ease: 'easeOut' }}
         >
           <SkeletonCard />

@@ -9,6 +9,7 @@ export interface GwitterConfig {
     repo?: string;
   };
   app?: {
+    dataSource?: 'issue' | 'discussion'; // 数据源模式：issue 或 discussion
     onlyShowOwner?: boolean;
     enableRepoSwitcher?: boolean;
     enableAbout?: boolean;
