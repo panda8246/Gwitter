@@ -1,19 +1,26 @@
 import axios from 'axios';
 import config from '../config';
 
-export const createAuthenticatedApi = (token: string) => {
+export const createAuthenticatedApi = (token?: string) => {
+  const headers: any = {
+    Accept: 'application/json',
+  };
+
+  // 只有在提供 token 时才添加 Authorization header
+  if (token) {
+    headers.Authorization = `bearer ${token}`;
+  }
+
   return axios.create({
     baseURL: 'https://api.github.com/',
-    headers: {
-      Accept: 'application/json',
-      Authorization: `bearer ${token}`,
-    },
+    headers,
   });
 };
 
-export const api = createAuthenticatedApi(
-  config.request.token.replaceAll('?', ''),
-);
+// 创建默认 API 实例（使用 owner token，如果有的话）
+export const api = config.request.token
+  ? createAuthenticatedApi(config.request.token.replaceAll('?', ''))
+  : createAuthenticatedApi(); // 无 token 的实例（rate limit: 60次/小时）
 
 interface GetIssuesQLParams {
   owner: string;

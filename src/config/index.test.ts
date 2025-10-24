@@ -5,16 +5,23 @@ import { GwitterConfig } from '../types/global';
 
 let config = {
   request: {
+    // 选项A：不配置 token，让用户登录使用个人配额
     token: undefined,
-    clientID: '56af6ab05592f0a2d399',
-    clientSecret: '5d7e71a1b6130001e84956420ca5b88bc45b7d3c',
+
+    // 选项B：配置你的 token（从 https://github.com/settings/tokens 生成）
+    // token: 'ghp_你的token' as string | undefined,
+
+    // ✅ 修改为你的 GitHub OAuth 配置
+    clientID: '你的_Client_ID',
+    clientSecret: '你的_Client_Secret',
+
     pageSize: 6,
     autoProxy:
       'https://cors-anywhere.azm.workers.dev/https://github.com/login/oauth/access_token',
 
     // ✅ 修改为你的 GitHub 仓库
-    owner: 'panda8246',
-    repo: 'tiny-blog',
+    owner: '你的_GitHub_用户名',
+    repo: '你的_仓库名',
   },
 
   app: {

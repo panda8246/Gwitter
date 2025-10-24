@@ -66,6 +66,25 @@ export const formatErrorMsg = (error: any): string => {
   return error.message || 'An unknown error occurred';
 };
 
+// 检查是否为 GitHub API Rate Limit 错误
+export const isRateLimitError = (error: any): boolean => {
+  if (!error) return false;
+
+  // GitHub API rate limit 返回 403 状态码
+  if (error.response?.status === 403) {
+    const message = error.response?.data?.message || '';
+    // 检查错误信息中是否包含 rate limit 相关关键词
+    return (
+      message.toLowerCase().includes('rate limit') ||
+      message.toLowerCase().includes('api rate limit') ||
+      message.toLowerCase().includes('exceeded') ||
+      error.response?.headers?.['x-ratelimit-remaining'] === '0'
+    );
+  }
+
+  return false;
+};
+
 export interface Label {
   name: string;
   color: string;

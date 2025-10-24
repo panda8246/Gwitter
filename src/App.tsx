@@ -16,9 +16,14 @@ import {
   transformIssues,
   transformDiscussions,
   updateUrlParams,
+  isRateLimitError,
 } from './utils';
 import { loadLastRepo, saveLastRepo } from './utils/cache';
-import { api, getIssuesQL, getDiscussionsQL } from './utils/request';
+import {
+  createAuthenticatedApi,
+  getIssuesQL,
+  getDiscussionsQL,
+} from './utils/request';
 
 const Container = styled.div`
   box-sizing: border-box;
@@ -85,14 +90,101 @@ const EmptyStateTitle = styled.h3`
   color: #333;
 `;
 
+const LoginPromptContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+`;
+
+const LoginPromptIcon = styled.div`
+  font-size: 64px;
+  margin-bottom: 20px;
+`;
+
+const LoginPromptTitle = styled.h3`
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  color: #333;
+`;
+
+const LoginPromptText = styled.p`
+  font-size: 16px;
+  color: #666;
+  margin: 0 0 30px 0;
+  line-height: 1.5;
+`;
+
+const LoginButton = styled.button`
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;
+
+const RateLimitContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+`;
+
+const RateLimitIcon = styled.div`
+  font-size: 64px;
+  margin-bottom: 20px;
+`;
+
+const RateLimitTitle = styled.h3`
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 10px 0;
+  color: #333;
+`;
+
+const RateLimitText = styled.p`
+  font-size: 16px;
+  color: #666;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+  max-width: 500px;
+`;
+
+const RateLimitHint = styled.p`
+  font-size: 14px;
+  color: #999;
+  margin: 10px 0 30px 0;
+`;
+
 const App = () => {
-  const { user } = useAuth();
+  const { user, token: userToken, isAuthenticated, login } = useAuth();
   const [issues, setIssues] = useState<ProcessedIssue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRepoLoading, setIsRepoLoading] = useState(true);
   const [hasNextPage, setHasNextPage] = useState(true);
   const [rawIssuesData, setRawIssuesData] = useState<any[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [needsLogin, setNeedsLogin] = useState(false); // 标记是否需要登录
+  const [rateLimitExceeded, setRateLimitExceeded] = useState(false); // 标记是否超出配额
   const [currentRepo, setCurrentRepo] = useState(() => {
     if (config.app.enableRepoSwitcher) {
       const urlRepo = getRepoFromUrl();
@@ -143,11 +235,27 @@ const App = () => {
     const repo = currentRepoRef.current;
     const dataSource = config.app.dataSource || 'issue'; // 默认使用 issue 模式
 
+    // 需求4和5：优先使用用户 token，其次使用 owner token
+    const ownerToken = config.request.token?.replaceAll('?', '');
+    const effectiveToken = userToken || ownerToken;
+
+    // 如果没有任何 token，需要提示用户登录
+    if (!effectiveToken) {
+      console.warn('No token available. User needs to login.');
+      setIsLoading(false);
+      setNeedsLogin(true); // 设置需要登录标记
+      return;
+    }
+
+    setNeedsLogin(false); // 有 token 时清除标记
+
     console.log(
       'loadIssues called for repo:',
       `${repo.owner}/${repo.repo}`,
       'dataSource:',
       dataSource,
+      'using token:',
+      userToken ? 'user token' : 'owner token',
       'cursor:',
       cursorRef.current,
       'isLoading:',
@@ -155,6 +263,9 @@ const App = () => {
     );
 
     try {
+      // 使用有效的 token 创建 API 实例
+      const apiInstance = createAuthenticatedApi(effectiveToken);
+
       // 根据 dataSource 选择不同的查询函数
       const query =
         dataSource === 'discussion'
@@ -171,7 +282,7 @@ const App = () => {
               pageSize: config.request.pageSize,
             });
 
-      const res = await api.post('/graphql', query);
+      const res = await apiInstance.post('/graphql', query);
 
       // 根据 dataSource 获取不同的数据路径
       const data =
@@ -199,10 +310,17 @@ const App = () => {
       loadMoreTriggeredRef.current = false;
     } catch (err) {
       console.error('err:', err);
+
+      // 需求6：检查是否为 rate limit 错误
+      if (isRateLimitError(err)) {
+        console.warn('Rate limit exceeded. User should login.');
+        setRateLimitExceeded(true);
+      }
+
       setIsLoading(false);
       loadMoreTriggeredRef.current = false;
     }
-  }, [rawIssuesData]);
+  }, [rawIssuesData, userToken]);
 
   const resetAndLoadNewRepo = useCallback(async () => {
     console.log('Resetting and loading new repo:', currentRepo);
@@ -226,7 +344,19 @@ const App = () => {
     setRepoError(null);
 
     try {
-      const res = await api.post(
+      // 使用有效的 token 创建 API 实例
+      const ownerToken = config.request.token?.replaceAll('?', '');
+      const effectiveToken = userToken || ownerToken;
+
+      if (!effectiveToken) {
+        console.warn('No token available for checking repository.');
+        setRepoError('Authentication required');
+        setIsRepoLoading(false);
+        return;
+      }
+
+      const apiInstance = createAuthenticatedApi(effectiveToken);
+      const res = await apiInstance.post(
         '/graphql',
         getIssuesQL({
           owner: currentRepo.owner,
@@ -259,6 +389,13 @@ const App = () => {
       setRepoError(null);
     } catch (err) {
       console.error('Error loading new repo:', err);
+
+      // 需求6：检查是否为 rate limit 错误
+      if (isRateLimitError(err)) {
+        console.warn('Rate limit exceeded during repo loading.');
+        setRateLimitExceeded(true);
+      }
+
       setIsLoading(false);
       setIsRepoLoading(false);
       setRepoError(
@@ -461,7 +598,55 @@ const App = () => {
           </IssuesContainer>
         </>
       )}
-      {issues.length === 0 &&
+      {rateLimitExceeded && !isLoading && !isRepoLoading && (
+        <IssuesContainer>
+          <RateLimitContainer>
+            <RateLimitIcon>⏱️</RateLimitIcon>
+            <RateLimitTitle>API Rate Limit Exceeded</RateLimitTitle>
+            <RateLimitText>
+              The GitHub API rate limit has been reached.
+              {!isAuthenticated && (
+                <>
+                  <br />
+                  <strong>Login with your GitHub account</strong> to use your
+                  personal API quota (5,000 requests/hour).
+                </>
+              )}
+            </RateLimitText>
+            {!isAuthenticated && (
+              <>
+                <LoginButton onClick={login}>Login with GitHub</LoginButton>
+                <RateLimitHint>
+                  Unauthenticated requests: 60/hour | Authenticated: 5,000/hour
+                </RateLimitHint>
+              </>
+            )}
+            {isAuthenticated && (
+              <RateLimitHint>
+                Your personal rate limit has been exceeded. Please try again
+                later.
+              </RateLimitHint>
+            )}
+          </RateLimitContainer>
+        </IssuesContainer>
+      )}
+      {needsLogin && !rateLimitExceeded && !isLoading && !isRepoLoading && (
+        <IssuesContainer>
+          <LoginPromptContainer>
+            <LoginPromptIcon>🔐</LoginPromptIcon>
+            <LoginPromptTitle>Login Required</LoginPromptTitle>
+            <LoginPromptText>
+              Please login with your GitHub account to view and interact with
+              content.
+              <br />
+              Your personal API quota will be used for accessing data.
+            </LoginPromptText>
+            <LoginButton onClick={login}>Login with GitHub</LoginButton>
+          </LoginPromptContainer>
+        </IssuesContainer>
+      )}
+      {!needsLogin &&
+        issues.length === 0 &&
         !isLoading &&
         !isRepoLoading &&
         !repoError &&
