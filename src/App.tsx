@@ -235,19 +235,14 @@ const App = () => {
     const repo = currentRepoRef.current;
     const dataSource = config.app.dataSource || 'issue'; // 默认使用 issue 模式
 
-    // 需求4和5：优先使用用户 token，其次使用 owner token
-    const ownerToken = config.request.token?.replaceAll('?', '');
+    // 需求4和5：优先使用用户 token，其次使用 owner token，最后使用游客模式（无 token）
+    const ownerToken = config.request.token
+      ? config.request.token.replaceAll('?', '')
+      : undefined;
     const effectiveToken = userToken || ownerToken;
 
-    // 如果没有任何 token，需要提示用户登录
-    if (!effectiveToken) {
-      console.warn('No token available. User needs to login.');
-      setIsLoading(false);
-      setNeedsLogin(true); // 设置需要登录标记
-      return;
-    }
-
-    setNeedsLogin(false); // 有 token 时清除标记
+    // ✅ 支持游客模式：即使没有 token 也允许请求（60次/小时限制）
+    setNeedsLogin(false);
 
     console.log(
       'loadIssues called for repo:',
@@ -255,7 +250,11 @@ const App = () => {
       'dataSource:',
       dataSource,
       'using token:',
-      userToken ? 'user token' : 'owner token',
+      effectiveToken
+        ? userToken
+          ? 'user token'
+          : 'owner token'
+        : 'guest mode (no token)',
       'cursor:',
       cursorRef.current,
       'isLoading:',
@@ -263,7 +262,7 @@ const App = () => {
     );
 
     try {
-      // 使用有效的 token 创建 API 实例
+      // 创建 API 实例（支持无 token 的游客模式）
       const apiInstance = createAuthenticatedApi(effectiveToken);
 
       // 根据 dataSource 选择不同的查询函数
@@ -344,16 +343,20 @@ const App = () => {
     setRepoError(null);
 
     try {
-      // 使用有效的 token 创建 API 实例
-      const ownerToken = config.request.token?.replaceAll('?', '');
+      // 优先使用用户 token，其次使用 owner token，支持游客模式（无 token）
+      const ownerToken = config.request.token
+        ? config.request.token.replaceAll('?', '')
+        : undefined;
       const effectiveToken = userToken || ownerToken;
 
-      if (!effectiveToken) {
-        console.warn('No token available for checking repository.');
-        setRepoError('Authentication required');
-        setIsRepoLoading(false);
-        return;
-      }
+      console.log(
+        'Loading repo with token:',
+        effectiveToken
+          ? userToken
+            ? 'user token'
+            : 'owner token'
+          : 'guest mode',
+      );
 
       const apiInstance = createAuthenticatedApi(effectiveToken);
       const res = await apiInstance.post(
