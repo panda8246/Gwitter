@@ -38,9 +38,9 @@ let config: InternalConfig = {
 
   app: {
     // ✅ 选择数据源模式
-    dataSource: 'discussion', // 使用新实现的 Discussion 模式
+    dataSource: 'issue', // 使用新实现的 Discussion 模式
 
-    onlyShowOwner: false,
+    onlyShowOwner: true,
     enableRepoSwitcher: false,
     enableAbout: false,
     enableEgg: false,
